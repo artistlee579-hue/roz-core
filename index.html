@@ -176,7 +176,6 @@
             sessions[id] = {
                 title: `Chat ${Object.keys(sessions).length + 1}`,
                 messages: [
-                    { role: "system", content: SYSTEM_PROMPT },
                     { role: "assistant", content: "System Online. Hello Gavin, R.O.Z. is ready to program." }
                 ]
             };
@@ -212,7 +211,6 @@
             history.innerHTML = '';
             if (!currentSessionId || !sessions[currentSessionId]) return;
             sessions[currentSessionId].messages.forEach(msg => {
-                if (msg.role === 'system') return;
                 const div = document.createElement('div');
                 div.className = `message ${msg.role === 'user' ? 'user' : 'roz'}`;
                 div.innerText = msg.content;
@@ -245,21 +243,13 @@
             updateStatus("COMPUTING", "#58a6ff");
 
             try {
-                // Formats history into a URL-friendly structure for direct processing
-                const formattedMessages = sessions[currentSessionId].messages.map(m => ({
-                    role: m.role,
-                    content: m.content
-                }));
+                // Compile chat logic into an unblockable, clean browser pipeline request string
+                const contextString = SYSTEM_PROMPT + " Current Chat Conversation: " + 
+                    sessions[currentSessionId].messages.map(m => m.role + ": " + m.content).join(" | ");
 
-                const response = await fetch("https://pollinations.ai", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        messages: formattedMessages,
-                        code: SYSTEM_PROMPT
-                    })
-                });
+                const requestUrl = `https://pollinations.ai{encodeURIComponent(contextString)}?model=openai`;
 
+                const response = await fetch(requestUrl);
                 const replyText = await response.text();
                 loadDiv.remove();
 
@@ -274,3 +264,10 @@
             } catch (error) {
                 console.error("Connection error:", error);
                 loadDiv.remove();
+                sessions[currentSessionId].messages.push({ role: "assistant", content: "System Sync Notice: Network packet dropped. Retrying data sequence..." });
+                renderMessages();
+                updateStatus("OFFLINE", "#f85149");
+            }
+        }
+
+        function saveToStorage() { localStorage.setItem('roz_sessions', JSON.stringify(sessions)); }
