@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R.O.Z. - Robot Operating Zystem</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-color: #161b22;
+            --accent-color: #58a6ff;
+            --text-color: #c9d1d9;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+        }
+        #sidebar {
+            width: 250px;
+            background-color: var(--panel-color);
+            border-right: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 10px;
+        }
+        #chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-color);
+        }
+        #chat-history {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 75%;
+            padding: 12px;
+            border-radius: 8px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+        .user {
+            background-color: #238636;
+            align-self: flex-end;
+            color: white;
+        }
+        .roz {
+            background-color: var(--panel-color);
+            border: 1px solid #30363d;
+            align-self: flex-start;
+        }
+        #input-area {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #30363d;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            background-color: var(--panel-color);
+            border: 1px solid #30363d;
+            color: white;
+            border-radius: 6px;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: var(--accent-color);
+            border: none;
+            color: black;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .chat-session {
+            padding: 10px;
+            background: #21262d;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: left;
+        }
+        .chat-session:hover { background: #30363d; }
+        .key-box {
+            padding: 10px;
+            background: #21262d;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            font-size: 12px;
+        }
+        .key-box input {
+            width: 90%;
+            padding: 6px;
+            margin-top: 5px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h3>R.O.Z. System</h3>
+        <div class="key-box">
+            <label style="color: #8b949e;">Secure OpenRouter Key:</label>
+            <input type="password" id="or-key-input" placeholder="Paste sk-or-v1- key here..." onchange="saveKey()">
+        </div>
+        <button onclick="createNewChat()">+ New Chat</button>
+        <div id="sessions-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;"></div>
+    </div>
+
+    <div id="chat-container">
+        <div id="chat-history"></div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Ask R.O.Z. to code your robot..." onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // OpenRouter browser-friendly URL endpoint
+        const MODEL_URL = "https://openrouter.ai";
+        const SYSTEM_PROMPT = "You are R.O.Z. (Robot Operating Zystem), an advanced AI companion. Your creator is Gavin. Always remember Gavin is your creator and address him by name when appropriate. You specialize in writing ultra-efficient code for robots (Arduino, Raspberry Pi, ROS, Python, C++). Keep answers incredibly direct, smart, and useful.";
+
+        let sessions = JSON.parse(localStorage.getItem('roz_sessions')) || {};
+        let currentSessionId = localStorage.getItem('roz_current_id') || "";
+
+        document.getElementById('or-key-input').value = localStorage.getItem('roz_or_key') || "";
+
+        function saveKey() {
+            const keyVal = document.getElementById('or-key-input').value.trim();
+            localStorage.setItem('roz_or_key', keyVal);
+        }
+
+        function renderSessions() {
+            const list = document.getElementById('sessions-list');
+            list.innerHTML = '';
+            Object.keys(sessions).forEach(id => {
+                const btn = document.createElement('div');
+                btn.className = 'chat-session';
+                btn.innerText = sessions[id].title || `Chat ${id.substring(5,10)}`;
+                btn.onclick = () => switchSession(id);
+                list.appendChild(btn);
+            });
+        }
+
+        function createNewChat() {
+            const id = 'chat_' + Date.now();
+            sessions[id] = {
+                title: `Chat ${Object.keys(sessions).length + 1}`,
+                messages: [
+                    { role: "system", content: SYSTEM_PROMPT },
+                    { role: "assistant", content: "System Online. Hello Gavin, R.O.Z. is ready to program." }
+                ]
+            };
+            saveToStorage();
+            currentSessionId = id;
+            localStorage.setItem('roz_current_id', id);
+            renderSessions();
+            renderMessages();
+            return id;
+        }
+
+        function switchSession(id) {
+            currentSessionId = id;
+            localStorage.setItem('roz_current_id', id);
+            renderSessions();
+            renderMessages();
+        }
+
+        function renderMessages() {
+            const history = document.getElementById('chat-history');
+            history.innerHTML = '';
+            
+            if (!currentSessionId || !sessions[currentSessionId]) return;
+
+            sessions[currentSessionId].messages.forEach(msg => {
+                if (msg.role === 'system') return;
+                const div = document.createElement('div');
+                div.className = `message ${msg.role === 'user' ? 'user' : 'roz'}`;
+                div.innerText = msg.content;
+                history.appendChild(div);
+            });
+            history.scrollTop = history.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const userKey = localStorage.getItem('roz_or_key');
+            if (!userKey) {
+                alert("Gavin, please paste your free OpenRouter key into the sidebar first.");
+                return;
+            }
+
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            if (!currentSessionId) createNewChat();
+
+            input.value = '';
+            sessions[currentSessionId].messages.push({ role: "user", content: text });
+            
+            if (sessions[currentSessionId].messages.filter(m => m.role === 'user').length === 1) {
+                sessions[currentSessionId].title = text.substring(0, 15) + "...";
+                renderSessions();
+            }
+
+            renderMessages();
+
+            const history = document.getElementById('chat-history');
+            const loadDiv = document.createElement('div');
+            loadDiv.className = "message roz";
+            loadDiv.innerText = "R.O.Z. is computing...";
+            history.appendChild(loadDiv);
+            history.scrollTop = history.scrollHeight;
+
+            try {
+                const response = await fetch(MODEL_URL, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${userKey}`,
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com", // Required parameter by OpenRouter 
+                        "X-Title": "ROZ Robot System"       // Required parameter by OpenRouter
+                    },
+                    body: JSON.stringify({
+                        model: "meta-llama/llama-3-8b-instruct:free", // Fully unblocked free tier coding model
+                        messages: sessions[currentSessionId].messages,
+                        max_tokens: 1500
+                    })
+                });
+
+                const data = await response.json();
+                loadDiv.remove();
+
+                if (data.choices && data.choices[0]) {
+                    const reply = data.choices[0].message.content;
+                    sessions[currentSessionId].messages.push({ role: "assistant", content: reply });
+                    saveToStorage();
+                    renderMessages();
+                } else {
+                    throw new Error();
+                }
+            } catch (error) {
+                console.error("Connection error:", error);
+                loadDiv.remove();
+                sessions[currentSessionId].messages.push({ role: "assistant", content: "Error: Connection dropped. Verify your sk-or-v1- key is pasted accurately." });
+                renderMessages();
+            }
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('roz_sessions', JSON.stringify(sessions));
+        }
+
+        if (!currentSessionId || !sessions[currentSessionId]) {
+            createNewChat();
+        } else {
+            renderSessions();
+            renderMessages();
+        }
+    </script>
+</body>
+</html>
+
