@@ -118,7 +118,7 @@
     <div id="sidebar">
         <h3>R.O.Z. System</h3>
         <div class="system-status">
-            <span>Brain Unit: </span><strong style="color: #2ea44f;">ONLINE</strong>
+            <span>Core Brain: </span><strong id="status-tag" style="color: #58a6ff;">INITIALIZING</strong>
         </div>
         <button onclick="createNewChat()">+ New Chat</button>
         <div id="sessions-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;"></div>
@@ -133,12 +133,24 @@
     </div>
 
     <script>
-        // Keyless direct proxy engine routing setup
-        const MODEL_URL = "https://replit.app";
+        // Multi-channel secure array routing avoids any singular node drops
+        const ENDPOINTS = [
+            "https://replit.app",
+            "https://allorigins.win" + encodeURIComponent("https://groq.com")
+        ];
+        
         const SYSTEM_PROMPT = "You are R.O.Z. (Robot Operating Zystem), an advanced AI companion. Your creator is Gavin. Always remember Gavin is your creator and address him by name when appropriate. You specialize in writing ultra-efficient code for robots (Arduino, Raspberry Pi, ROS, Python, C++). Keep answers incredibly direct, smart, and useful.";
 
         let sessions = JSON.parse(localStorage.getItem('roz_sessions')) || {};
         let currentSessionId = localStorage.getItem('roz_current_id') || "";
+
+        function updateStatus(text, color) {
+            const tag = document.getElementById('status-tag');
+            if(tag) {
+                tag.innerText = text;
+                tag.style.color = color;
+            }
+        }
 
         function renderSessions() {
             const list = document.getElementById('sessions-list');
@@ -187,7 +199,7 @@
             saveToStorage();
             if (currentSessionId === id) {
                 const remainingIds = Object.keys(sessions);
-                currentSessionId = remainingIds.length > 0 ? remainingIds[0] : createNewChat();
+                currentSessionId = remainingIds.length > 0 ? remainingIds : createNewChat();
                 localStorage.setItem('roz_current_id', currentSessionId);
             }
             renderSessions();
@@ -215,6 +227,19 @@
             history.scrollTop = history.scrollHeight;
         }
 
+        async function fetchAIResponse(url, messages) {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: "llama-3-8b-instruct",
+                    messages: messages,
+                    max_tokens: 1500
+                })
+            });
+            return await response.json();
+        }
+
         async function sendMessage() {
             const input = document.getElementById('user-input');
             const text = input.value.trim();
@@ -236,35 +261,14 @@
             history.appendChild(loadDiv);
             history.scrollTop = history.scrollHeight;
 
-            try {
-                const response = await fetch(MODEL_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        model: "llama-3-8b-instruct",
-                        messages: sessions[currentSessionId].messages,
-                        max_tokens: 1500
-                    })
-                });
-                const data = await response.json();
-                loadDiv.remove();
-                if (data.choices && data.choices[0]) {
-                    const reply = data.choices[0].message.content;
-                    sessions[currentSessionId].messages.push({ role: "assistant", content: reply });
-                    saveToStorage();
-                    renderMessages();
-                } else {
-                    throw new Error();
-                }
-            } catch (error) {
-                loadDiv.remove();
-                sessions[currentSessionId].messages.push({ role: "assistant", content: "System Packet Notice: Core connection sync delay. Resending command block..." });
-                renderMessages();
-            }
-        }
+            updateStatus("COMPUTING", "#58a6ff");
 
-        function saveToStorage() { localStorage.setItem('roz_sessions', JSON.stringify(sessions)); }
-        if (!currentSessionId || !sessions[currentSessionId]) { createNewChat(); } else { renderSessions(); renderMessages(); }
-    </script>
-</body>
-</html>
+            // Self-healing attempt loop cycles through backup channels automatically if one fails
+            let success = false;
+            for (let i = 0; i < ENDPOINTS.length; i++) {
+                try {
+                    const data = await fetchAIResponse(ENDPOINTS[i], sessions[currentSessionId].messages);
+                    loadDiv.remove();
+                    if (data.choices && data.choices[0]) {
+                        const reply = data.choices[0].message.content;
+                        sessions[currentSessionId].messages.push({ role: "assistant", content: reply });
