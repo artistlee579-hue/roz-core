@@ -133,9 +133,6 @@
     </div>
 
     <script>
-        // Highly available browser-friendly unblocked endpoint
-        const MODEL_URL = "https://pollinations.ai";
-        
         const SYSTEM_PROMPT = "You are R.O.Z. (Robot Operating Zystem), an advanced AI companion. Your creator is Gavin. Always remember Gavin is your creator and address him by name when appropriate. You specialize in writing ultra-efficient code for robots (Arduino, Raspberry Pi, ROS, Python, C++). Keep answers incredibly direct, smart, and useful.";
 
         let sessions = JSON.parse(localStorage.getItem('roz_sessions')) || {};
@@ -248,13 +245,18 @@
             updateStatus("COMPUTING", "#58a6ff");
 
             try {
-                // OpenAI structured format fallback handled natively by the endpoint layout
-                const response = await fetch(MODEL_URL, {
+                // Formats history into a URL-friendly structure for direct processing
+                const formattedMessages = sessions[currentSessionId].messages.map(m => ({
+                    role: m.role,
+                    content: m.content
+                }));
+
+                const response = await fetch("https://pollinations.ai", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        messages: sessions[currentSessionId].messages,
-                        model: "openai" // Switches backend processing seamlessly past firewall blocks
+                        messages: formattedMessages,
+                        code: SYSTEM_PROMPT
                     })
                 });
 
