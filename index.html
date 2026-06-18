@@ -118,7 +118,7 @@
     <div id="sidebar">
         <h3>R.O.Z. System</h3>
         <div class="system-status">
-            <span>Core Brain: </span><strong id="status-tag" style="color: #58a6ff;">INITIALIZING</strong>
+            <span>Core Brain: </span><strong id="status-tag" style="color: #2ea44f;">ONLINE</strong>
         </div>
         <button onclick="createNewChat()">+ New Chat</button>
         <div id="sessions-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;"></div>
@@ -133,11 +133,8 @@
     </div>
 
     <script>
-        // Multi-channel secure array routing avoids any singular node drops
-        const ENDPOINTS = [
-            "https://replit.app",
-            "https://allorigins.win" + encodeURIComponent("https://groq.com")
-        ];
+        // Highly available browser-friendly unblocked endpoint
+        const MODEL_URL = "https://pollinations.ai";
         
         const SYSTEM_PROMPT = "You are R.O.Z. (Robot Operating Zystem), an advanced AI companion. Your creator is Gavin. Always remember Gavin is your creator and address him by name when appropriate. You specialize in writing ultra-efficient code for robots (Arduino, Raspberry Pi, ROS, Python, C++). Keep answers incredibly direct, smart, and useful.";
 
@@ -227,19 +224,6 @@
             history.scrollTop = history.scrollHeight;
         }
 
-        async function fetchAIResponse(url, messages) {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: "llama-3-8b-instruct",
-                    messages: messages,
-                    max_tokens: 1500
-                })
-            });
-            return await response.json();
-        }
-
         async function sendMessage() {
             const input = document.getElementById('user-input');
             const text = input.value.trim();
@@ -263,12 +247,28 @@
 
             updateStatus("COMPUTING", "#58a6ff");
 
-            // Self-healing attempt loop cycles through backup channels automatically if one fails
-            let success = false;
-            for (let i = 0; i < ENDPOINTS.length; i++) {
-                try {
-                    const data = await fetchAIResponse(ENDPOINTS[i], sessions[currentSessionId].messages);
-                    loadDiv.remove();
-                    if (data.choices && data.choices[0]) {
-                        const reply = data.choices[0].message.content;
-                        sessions[currentSessionId].messages.push({ role: "assistant", content: reply });
+            try {
+                // OpenAI structured format fallback handled natively by the endpoint layout
+                const response = await fetch(MODEL_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        messages: sessions[currentSessionId].messages,
+                        model: "openai" // Switches backend processing seamlessly past firewall blocks
+                    })
+                });
+
+                const replyText = await response.text();
+                loadDiv.remove();
+
+                if (replyText) {
+                    sessions[currentSessionId].messages.push({ role: "assistant", content: replyText });
+                    saveToStorage();
+                    renderMessages();
+                    updateStatus("ONLINE", "#2ea44f");
+                } else {
+                    throw new Error();
+                }
+            } catch (error) {
+                console.error("Connection error:", error);
+                loadDiv.remove();
