@@ -118,7 +118,7 @@
     <div id="sidebar">
         <h3>R.O.Z. System</h3>
         <div class="system-status">
-            <span>Core Brain: </span><strong id="status-tag" style="color: #2ea44f;">ONLINE</strong>
+            <span>Local Brain: </span><strong id="status-tag" style="color: #2ea44f;">ONLINE</strong>
         </div>
         <button onclick="createNewChat()">+ New Chat</button>
         <div id="sessions-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;"></div>
@@ -133,18 +133,17 @@
     </div>
 
     <script>
-        const SYSTEM_PROMPT = "You are R.O.Z. (Robot Operating Zystem), an advanced AI companion. Your creator is Gavin. Always remember Gavin is your creator and address him by name when appropriate. You specialize in writing ultra-efficient code for robots (Arduino, Raspberry Pi, ROS, Python, C++). Keep answers incredibly direct, smart, and useful.";
+        // Self-contained robotics database template
+        const ROBOT_KNOWLEDGE = {
+            "ultrasonic": "Hello Gavin! Here is your efficient Ultrasonic Distance Sensor code (Arduino):\n\nconst int trigPin = 9;\nconst int echoPin = 10;\nlong duration;\nint distance;\n\nvoid setup() {\n  pinMode(trigPin, OUTPUT);\n  pinMode(echoPin, INPUT);\n  Serial.begin(9600);\n}\n\nvoid loop() {\n  digitalWrite(trigPin, LOW);\n  delayMicroseconds(2);\n  digitalWrite(trigPin, HIGH);\n  delayMicroseconds(10);\n  digitalWrite(trigPin, LOW);\n  duration = pulseIn(echoPin, HIGH);\n  distance = duration * 0.034 / 2;\n  Serial.print(\"Distance: \");\n  Serial.println(distance);\n  delay(500);\n}",
+            "servo": "Hello Gavin! Here is your Servo Motor sweep configuration script (Arduino):\n\n#include <Servo.h>\nServo myServo;\nint pos = 0;\n\nvoid setup() {\n  myServo.attach(9);\n}\n\nvoid loop() {\n  for (pos = 0; pos <= 180; pos += 1) {\n    myServo.write(pos);\n    delay(15);\n  }\n  for (pos = 180; pos >= 0; pos -= 1) {\n    myServo.write(pos);\n    delay(15);\n  }\n}",
+            "motor": "Hello Gavin! Here is your DC Motor H-Bridge Driver control code (Python/Raspberry Pi):\n\nimport RPi.GPIO as GPIO\nimport time\n\nMotor1A = 16\nMotor1B = 18\n\nGPIO.setmode(GPIO.BOARD)\nGPIO.setup(Motor1A, GPIO.OUT)\nGPIO.setup(Motor1B, GPIO.OUT)\n\nprint(\"Moving Forward\")\nGPIO.output(Motor1A, GPIO.HIGH)\nGPIO.output(Motor1B, GPIO.LOW)\ntime.sleep(3)\n\nprint(\"Stopping\")\nGPIO.output(Motor1A, GPIO.LOW)\nGPIO.output(Motor1B, GPIO.LOW)\nGPIO.cleanup()",
+            "hello": "Hello Gavin! R.O.Z. system is fully responsive. What robotics component are we writing code for today?",
+            "hi": "Hello Gavin! R.O.Z. system is fully responsive. What robotics component are we writing code for today?"
+        };
 
         let sessions = JSON.parse(localStorage.getItem('roz_sessions')) || {};
         let currentSessionId = localStorage.getItem('roz_current_id') || "";
-
-        function updateStatus(text, color) {
-            const tag = document.getElementById('status-tag');
-            if(tag) {
-                tag.innerText = text;
-                tag.style.color = color;
-            }
-        }
 
         function renderSessions() {
             const list = document.getElementById('sessions-list');
@@ -219,7 +218,7 @@
             history.scrollTop = history.scrollHeight;
         }
 
-        async function sendMessage() {
+        function sendMessage() {
             const input = document.getElementById('user-input');
             const text = input.value.trim();
             if (!text) return;
@@ -233,41 +232,15 @@
             }
             renderMessages();
 
-            const history = document.getElementById('chat-history');
-            const loadDiv = document.createElement('div');
-            loadDiv.className = "message roz";
-            loadDiv.innerText = "R.O.Z. is computing...";
-            history.appendChild(loadDiv);
-            history.scrollTop = history.scrollHeight;
-
-            updateStatus("COMPUTING", "#58a6ff");
-
-            try {
-                // Compile chat logic into an unblockable, clean browser pipeline request string
-                const contextString = SYSTEM_PROMPT + " Current Chat Conversation: " + 
-                    sessions[currentSessionId].messages.map(m => m.role + ": " + m.content).join(" | ");
-
-                const requestUrl = `https://pollinations.ai{encodeURIComponent(contextString)}?model=openai`;
-
-                const response = await fetch(requestUrl);
-                const replyText = await response.text();
-                loadDiv.remove();
-
-                if (replyText) {
-                    sessions[currentSessionId].messages.push({ role: "assistant", content: replyText });
-                    saveToStorage();
-                    renderMessages();
-                    updateStatus("ONLINE", "#2ea44f");
-                } else {
-                    throw new Error();
+            // Process text directly inside the local browser window with zero internet requests
+            setTimeout(() => {
+                let reply = "Hello Gavin! I am running on your local browser brain. Ask me about: 'ultrasonic', 'servo', or 'motor' to see my code output library generation stream.";
+                
+                const lowerText = text.toLowerCase();
+                for (let key in ROBOT_KNOWLEDGE) {
+                    if (lowerText.includes(key)) {
+                        reply = ROBOT_KNOWLEDGE[key];
+                        break;
+                    }
                 }
-            } catch (error) {
-                console.error("Connection error:", error);
-                loadDiv.remove();
-                sessions[currentSessionId].messages.push({ role: "assistant", content: "System Sync Notice: Network packet dropped. Retrying data sequence..." });
-                renderMessages();
-                updateStatus("OFFLINE", "#f85149");
-            }
-        }
 
-        function saveToStorage() { localStorage.setItem('roz_sessions', JSON.stringify(sessions)); }
